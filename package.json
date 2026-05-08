@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "description": "Plataforma web para solicitação, aprovação e controle de home office de estagiários.",
   "scripts": {
-    "dev": "python3 -m http.server 5173",
-    "start": "python3 -m http.server 5173",
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
     "build": "echo \"Projeto estático: sem etapa de build\"",
-    "check": "node --check script.js",
-    "preview": "python3 -m http.server 5173"
+    "check": "node --check script.js && node --check server.mjs",
+    "preview": "node server.mjs"
   },
   "keywords": [
     "home-office",

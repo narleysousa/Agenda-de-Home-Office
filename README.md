@@ -41,7 +41,7 @@ Os créditos são renovados todo mês e não acumulam para o mês seguinte.
 ## Fluxo de uso
 
 1. Execute `npm run dev`.
-2. Abra [http://localhost:5173](http://localhost:5173).
+2. Abra [http://localhost:5174](http://localhost:5174).
 3. Faça login pelo seletor de usuário.
 4. Usuários criam solicitações na seção "Solicitar home office".
 5. `adm` e `master` analisam solicitações pendentes (aprovar/negar).
@@ -49,10 +49,16 @@ Os créditos são renovados todo mês e não acumulam para o mês seguinte.
 
 ## Scripts
 
-- `npm run dev`: sobe servidor local em `http://localhost:5173`.
-- `npm run check`: valida a sintaxe do JavaScript.
+- `npm run dev`: sobe servidor local em `http://localhost:5174`.
+- `npm run check`: valida a sintaxe do JavaScript e do servidor local.
 - `npm run build`: placeholder para deploy estático.
-- `npm run preview`: sobe servidor local em `http://localhost:5173`.
+- `npm run preview`: sobe servidor local em `http://localhost:5174`.
+
+Se a porta `5174` estiver ocupada:
+
+```bash
+PORT=5175 npm run dev
+```
 
 ## Publicar no GitHub Pages
 
@@ -78,17 +84,9 @@ npm run check
 npm run build
 ```
 
-## Alternativa sem npm
+## Alternativa sem servidor
 
-Se preferir, rode direto:
-
-`python3 -m http.server 5173`
-
-e abra [http://localhost:5173](http://localhost:5173).
-
-## Fluxo antigo (abrir arquivo)
-
-Também funciona abrindo `index.html` diretamente no navegador.
+Também funciona abrindo `index.html` diretamente no navegador, mas o fluxo recomendado é `npm run dev`.
 
 ## Primeira execução
 
