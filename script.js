@@ -269,8 +269,13 @@ async function salvar(chave, dados) {
     }
   });
 
-  await batch.commit();
-  return true;
+  try {
+    await batch.commit();
+    return true;
+  } catch (error) {
+    mostrarMensagem(`Falha ao salvar dados no Firebase: ${error.message}`, "erro");
+    return false;
+  }
 }
 
 async function iniciarFirebase() {
@@ -1095,7 +1100,8 @@ if (formCadastroUsuario) {
       cargoAcesso,
       senhaHash: await hashPin(pin),
     });
-    await salvar(CHAVE_ESTAGIARIOS, estagiarios);
+    const salvo = await salvar(CHAVE_ESTAGIARIOS, estagiarios);
+    if (!salvo) return;
     formCadastroUsuario.reset();
     mostrarMensagem("Usuário cadastrado com sucesso.", "sucesso");
     renderizarTudo();
@@ -1199,7 +1205,8 @@ async function solicitarHomeOffice(data, origem = "formulario") {
     analisadoPor: null,
     analisadoEm: null,
   });
-  await salvar(CHAVE_AGENDAMENTOS, agendamentos);
+  const salvo = await salvar(CHAVE_AGENDAMENTOS, agendamentos);
+  if (!salvo) return false;
   if (formAgendamento) formAgendamento.reset();
   configurarCampoDataHome();
   const complemento = origem === "calendario" ? ` para ${formatarData(data)}` : "";
@@ -1264,7 +1271,8 @@ if (btnLimparAgendamentos) {
     if (!confirmou) return;
 
     const idsRemoviveis = new Set(removiveis.map((a) => a.id));
-    await salvar(CHAVE_AGENDAMENTOS, agendamentos.filter((a) => !idsRemoviveis.has(a.id)));
+    const salvo = await salvar(CHAVE_AGENDAMENTOS, agendamentos.filter((a) => !idsRemoviveis.has(a.id)));
+    if (!salvo) return;
     mostrarMensagem("Histórico de agendamentos limpo com sucesso.", "sucesso");
     renderizarTudo();
   });
@@ -1364,7 +1372,8 @@ if (tabelaPendentes) tabelaPendentes.addEventListener("click", async (event) => 
     mostrarMensagem("Solicitação negada.", "erro");
   }
 
-  await salvar(CHAVE_AGENDAMENTOS, agendamentos);
+  const salvo = await salvar(CHAVE_AGENDAMENTOS, agendamentos);
+  if (!salvo) return;
   renderizarTudo();
 });
 
@@ -1390,7 +1399,8 @@ if (tabelaAgendamentos) tabelaAgendamentos.addEventListener("click", async (even
   item.status = "cancelado";
   item.analisadoPor = usuarioAtual.id;
   item.analisadoEm = new Date().toISOString();
-  await salvar(CHAVE_AGENDAMENTOS, agendamentos);
+  const salvo = await salvar(CHAVE_AGENDAMENTOS, agendamentos);
+  if (!salvo) return;
   mostrarMensagem("Solicitação cancelada.", "sucesso");
   renderizarTudo();
 });
@@ -1448,7 +1458,8 @@ if (tabelaEstagiarios) tabelaEstagiarios.addEventListener("click", async (event)
     if (novoPin) {
       estagiarios[idx].senhaHash = await hashPin(novoPin);
     }
-    await salvar(CHAVE_ESTAGIARIOS, estagiarios);
+    const salvo = await salvar(CHAVE_ESTAGIARIOS, estagiarios);
+    if (!salvo) return;
     mostrarMensagem("Usuário atualizado com sucesso.", "sucesso");
     renderizarTudo();
     return;
@@ -1469,11 +1480,13 @@ if (tabelaEstagiarios) tabelaEstagiarios.addEventListener("click", async (event)
     if (!confirmou) return;
 
     const estagiariosAtualizados = estagiarios.filter((e) => e.id !== idAlvo);
-    await salvar(CHAVE_ESTAGIARIOS, estagiariosAtualizados);
+    const salvouUsuarios = await salvar(CHAVE_ESTAGIARIOS, estagiariosAtualizados);
+    if (!salvouUsuarios) return;
 
     const agendamentos = getAgendamentos();
     const agendamentosAtualizados = agendamentos.filter((a) => a.estagiarioId !== idAlvo);
-    await salvar(CHAVE_AGENDAMENTOS, agendamentosAtualizados);
+    const salvouAgendamentos = await salvar(CHAVE_AGENDAMENTOS, agendamentosAtualizados);
+    if (!salvouAgendamentos) return;
 
     if (usuarioAtual.id === idAlvo) {
       sessionStorage.removeItem(CHAVE_USUARIO_ATUAL);
