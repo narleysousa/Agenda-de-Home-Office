@@ -10,6 +10,6 @@ window.firebaseConfig = {
 
 // Conta técnica do app (Firebase Authentication > Email/senha)
 window.firebaseServiceAuth = {
-  email: "",
-  password: ""
+  email: "svc-agenda-1778268554@agenda.local",
+  password: "Agenda#2026!8554"
 };
