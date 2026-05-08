@@ -7,3 +7,9 @@ window.firebaseConfig = {
   appId: "1:1067432303226:web:dffd0af86c1bd222ee79c3",
   measurementId: "G-2XYW5T8E0W"
 };
+
+// Conta técnica do app (Firebase Authentication > Email/senha)
+window.firebaseServiceAuth = {
+  email: "",
+  password: ""
+};

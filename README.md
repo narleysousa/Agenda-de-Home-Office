@@ -53,6 +53,8 @@ Os créditos são renovados todo mês e não acumulam para o mês seguinte.
 - `npm run check`: valida a sintaxe do JavaScript e do servidor local.
 - `npm run build`: placeholder para deploy estático.
 - `npm run preview`: sobe servidor local em `http://localhost:5174`.
+- `npm run firebase:login`: autentica o Firebase CLI.
+- `npm run firebase:rules:deploy`: publica as regras do Firestore.
 
 Se a porta `5174` estiver ocupada:
 
@@ -117,10 +119,16 @@ Para conectar o app ao Firebase:
 2. Crie um app Web dentro do projeto.
 3. Copie o objeto `firebaseConfig`.
 4. Cole os valores em `firebase-config.js`.
-5. Ative `Authentication > Sign-in method > Anonymous`.
+5. Ative `Authentication > Sign-in method > Email/senha`.
+6. Crie uma conta técnica em `Authentication > Users` e preencha em `firebase-config.js`:
+   - `window.firebaseServiceAuth.email`
+   - `window.firebaseServiceAuth.password`
 6. Crie o Cloud Firestore.
 7. Publique as regras de `firestore.rules`.
 
-O app usa Firebase Auth anônimo só para liberar leitura/escrita no Firestore. Os perfis `usuario`, `adm` e `master` continuam sendo controlados pela própria plataforma.
+Fluxo de deploy das regras:
 
-Para produção com segurança forte, o próximo passo é trocar o seletor interno por login real do Firebase Auth e mover validações críticas de cota mensal para backend/Cloud Functions.
+```bash
+npm run firebase:login
+npm run firebase:rules:deploy
+```

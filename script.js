@@ -210,10 +210,13 @@ function mostrarMensagem(texto, tipo) {
 
 function firebaseConfigurado() {
   const config = window.firebaseConfig || {};
+  const serviceAuth = window.firebaseServiceAuth || {};
   return Boolean(
     window.firebase &&
     config.apiKey &&
     config.projectId &&
+    serviceAuth.email &&
+    serviceAuth.password &&
     !String(config.apiKey).includes("COLE_") &&
     !String(config.projectId).includes("SEU_PROJETO")
   );
@@ -263,7 +266,7 @@ async function salvar(chave, dados) {
 
 async function iniciarFirebase() {
   if (!firebaseConfigurado()) {
-    erroFirebase = "Firebase não configurado. Preencha firebase-config.js com os dados do seu projeto.";
+    erroFirebase = "Firebase não configurado. Preencha firebase-config.js com os dados do projeto e a conta técnica em firebaseServiceAuth (email/senha).";
     estagiariosCarregados = true;
     agendamentosCarregados = true;
     renderizarTudo();
@@ -277,7 +280,8 @@ async function iniciarFirebase() {
 
     auth = firebase.auth();
     db = firebase.firestore();
-    await auth.signInAnonymously();
+    const serviceAuth = window.firebaseServiceAuth || {};
+    await auth.signInWithEmailAndPassword(serviceAuth.email, serviceAuth.password);
 
     unsubscribeEstagiarios = db.collection(COLECAO_ESTAGIARIOS).onSnapshot((snapshot) => {
       estadoRemoto.estagiarios = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -298,7 +302,13 @@ async function iniciarFirebase() {
       mostrarMensagem(erroFirebase, "erro");
     });
   } catch (error) {
-    erroFirebase = `Erro ao iniciar Firebase: ${error.message}`;
+    if (error && (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password")) {
+      erroFirebase = "Erro ao iniciar Firebase: credenciais inválidas em firebaseServiceAuth. Configure um usuário Email/Senha válido no Firebase Authentication.";
+    } else if (error && error.code === "auth/operation-not-allowed") {
+      erroFirebase = "Erro ao iniciar Firebase: ative o método Email/Senha em Authentication > Sign-in method no Firebase Console.";
+    } else {
+      erroFirebase = `Erro ao iniciar Firebase: ${error.message}`;
+    }
     estagiariosCarregados = true;
     agendamentosCarregados = true;
     renderizarTudo();
