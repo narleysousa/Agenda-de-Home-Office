@@ -60,6 +60,7 @@ let estagiariosCarregados = false;
 let agendamentosCarregados = false;
 let erroFirebase = "";
 let migracaoPinsEmAndamento = false;
+let bootstrapUsuarioEmAndamento = false;
 let unsubscribeEstagiarios = null;
 let unsubscribeAgendamentos = null;
 const estadoRemoto = {
@@ -287,6 +288,7 @@ async function iniciarFirebase() {
       estadoRemoto.estagiarios = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       estagiariosCarregados = true;
       migrarPinsAusentes();
+      garantirUsuarioBootstrap();
       renderizarTudo();
     }, (error) => {
       erroFirebase = `Erro ao carregar usuários: ${error.message}`;
@@ -332,6 +334,44 @@ async function migrarPinsAusentes() {
     mostrarMensagem(`Erro ao migrar PINs: ${error.message}`, "erro");
   } finally {
     migracaoPinsEmAndamento = false;
+  }
+}
+
+async function garantirUsuarioBootstrap() {
+  if (!db || bootstrapUsuarioEmAndamento || !estagiariosCarregados) return;
+  const estagiarios = normalizarEstagiarios(estadoRemoto.estagiarios);
+  if (estagiarios.length > 0) return;
+
+  bootstrapUsuarioEmAndamento = true;
+  try {
+    const emailServico = (window.firebaseServiceAuth && window.firebaseServiceAuth.email) || "";
+    const nomeBase = emailServico ? emailServico.split("@")[0].replace(/[._-]+/g, " ") : "Administrador inicial";
+    const nome = nomeBase
+      .split(" ")
+      .filter(Boolean)
+      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+      .join(" ");
+
+    const usuarioInicial = {
+      id: gerarId(),
+      nome: nome || "Administrador Inicial",
+      cargoFuncional: "Gestor da plataforma",
+      unidadeLotacao: "Matriz",
+      nivel: 3,
+      cargoAcesso: "master",
+      senhaHash: await hashPin("0000"),
+    };
+
+    const salvo = await salvar(CHAVE_ESTAGIARIOS, [usuarioInicial]);
+    if (!salvo) {
+      mostrarMensagem("Falha ao criar usuário inicial automaticamente.", "erro");
+    } else {
+      mostrarMensagem("Usuário inicial criado. Use PIN 0000 para entrar e altere depois.", "sucesso");
+    }
+  } catch (error) {
+    mostrarMensagem(`Erro ao criar usuário inicial: ${error.message}`, "erro");
+  } finally {
+    bootstrapUsuarioEmAndamento = false;
   }
 }
 
@@ -1004,7 +1044,11 @@ if (formAutoCadastro) {
     };
 
     estagiarios.push(novoUsuario);
-    await salvar(CHAVE_ESTAGIARIOS, estagiarios);
+    const salvo = await salvar(CHAVE_ESTAGIARIOS, estagiarios);
+    if (!salvo) {
+      mostrarMensagem("Não foi possível criar a conta agora. Verifique regras/conexão do Firebase.", "erro");
+      return;
+    }
     sessionStorage.setItem(CHAVE_USUARIO_ATUAL, novoUsuario.id);
     window.location.href = "app.html";
   });
