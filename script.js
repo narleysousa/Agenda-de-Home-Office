@@ -13,6 +13,7 @@ const diasSemana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
 
 const formLoginInicial = document.getElementById("form-login-inicial");
 const selectUsuarioLoginInicial = document.getElementById("usuario-login-inicial");
+const senhaLoginInicial = document.getElementById("senha-login-inicial");
 const formAutoCadastro = document.getElementById("form-auto-cadastro");
 const btnLogout = document.getElementById("btn-logout");
 const seletorTema = document.getElementById("seletor-tema");
@@ -58,6 +59,7 @@ let auth = null;
 let estagiariosCarregados = false;
 let agendamentosCarregados = false;
 let erroFirebase = "";
+let migracaoPinsEmAndamento = false;
 let unsubscribeEstagiarios = null;
 let unsubscribeAgendamentos = null;
 const estadoRemoto = {
@@ -95,6 +97,18 @@ function normalizarTexto(valor) {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
+}
+
+function pinValido(pin) {
+  return /^\d{4}$/.test(String(pin || ""));
+}
+
+async function hashPin(pin) {
+  const bytes = new TextEncoder().encode(String(pin));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 function dataHojeIso(data = new Date()) {
@@ -268,6 +282,7 @@ async function iniciarFirebase() {
     unsubscribeEstagiarios = db.collection(COLECAO_ESTAGIARIOS).onSnapshot((snapshot) => {
       estadoRemoto.estagiarios = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       estagiariosCarregados = true;
+      migrarPinsAusentes();
       renderizarTudo();
     }, (error) => {
       erroFirebase = `Erro ao carregar usuários: ${error.message}`;
@@ -287,6 +302,26 @@ async function iniciarFirebase() {
     estagiariosCarregados = true;
     agendamentosCarregados = true;
     renderizarTudo();
+  }
+}
+
+async function migrarPinsAusentes() {
+  if (!db || migracaoPinsEmAndamento) return;
+  const semPin = estadoRemoto.estagiarios.filter((e) => !e.senhaHash);
+  if (semPin.length === 0) return;
+
+  migracaoPinsEmAndamento = true;
+  try {
+    const senhaHash = await hashPin("0000");
+    const batch = db.batch();
+    semPin.forEach((usuario) => {
+      batch.update(db.collection(COLECAO_ESTAGIARIOS).doc(usuario.id), { senhaHash });
+    });
+    await batch.commit();
+  } catch (error) {
+    mostrarMensagem(`Erro ao migrar PINs: ${error.message}`, "erro");
+  } finally {
+    migracaoPinsEmAndamento = false;
   }
 }
 
@@ -348,6 +383,7 @@ function normalizarEstagiarios(estagiariosRecebidos) {
     const unidadeLotacao = String(item.unidadeLotacao || "Não informada").trim() || "Não informada";
     const nivel = normalizarNivel(item.nivel);
     const cargoAcesso = normalizarCargoAcesso(item.cargoAcesso || item.cargo);
+    const senhaHash = String(item.senhaHash || "");
 
     if (
       id !== item.id ||
@@ -355,12 +391,13 @@ function normalizarEstagiarios(estagiariosRecebidos) {
       cargoFuncional !== item.cargoFuncional ||
       unidadeLotacao !== item.unidadeLotacao ||
       nivel !== item.nivel ||
-      cargoAcesso !== item.cargoAcesso
+      cargoAcesso !== item.cargoAcesso ||
+      senhaHash !== item.senhaHash
     ) {
       alterou = true;
     }
 
-    return { id, nome, cargoFuncional, unidadeLotacao, nivel, cargoAcesso };
+    return { id, nome, cargoFuncional, unidadeLotacao, nivel, cargoAcesso, senhaHash };
   });
 
   if (normalizados.length > 0 && !normalizados.some((e) => e.cargoAcesso === "master")) {
@@ -640,7 +677,7 @@ function renderizarEstagiarios(estagiarios, agendamentos, usuarioAtual) {
   const lista = filtrarEstagiarios(estagiarios, usuarioAtual);
 
   if (lista.length === 0) {
-    tabelaEstagiarios.innerHTML = `<tr><td colspan="8">Nenhum estagiário encontrado.</td></tr>`;
+    tabelaEstagiarios.innerHTML = `<tr><td colspan="9">Nenhum estagiário encontrado.</td></tr>`;
     return;
   }
 
@@ -683,6 +720,9 @@ function renderizarEstagiarios(estagiarios, agendamentos, usuarioAtual) {
           </div>
         `
         : "-";
+      const senhaCelula = isMaster
+        ? `<input class="pin-input" data-pin-id="${id}" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="Novo PIN" aria-label="Nova senha de 4 dígitos para ${nome}">`
+        : `<span class="badge ${e.senhaHash ? "aprovado" : "pendente"}">${e.senhaHash ? "definida" : "pendente"}</span>`;
 
       return `
         <tr>
@@ -693,6 +733,7 @@ function renderizarEstagiarios(estagiarios, agendamentos, usuarioAtual) {
           <td class="nowrap">${perfilCelula}</td>
           <td>${limite}</td>
           <td>${aprovados}${reservados > aprovados ? ` (${reservados} reservados)` : ""}</td>
+          <td>${senhaCelula}</td>
           <td>${acoes}</td>
         </tr>
       `;
@@ -893,13 +934,31 @@ function renderizarTudo() {
 }
 
 if (formLoginInicial) {
-  formLoginInicial.addEventListener("submit", (event) => {
+  formLoginInicial.addEventListener("submit", async (event) => {
     event.preventDefault();
     const usuarioId = selectUsuarioLoginInicial.value;
+    const pin = senhaLoginInicial ? senhaLoginInicial.value.trim() : "";
     if (!usuarioId) {
       mostrarMensagem("Cadastre o primeiro usuário para começar.", "erro");
       return;
     }
+    if (!pinValido(pin)) {
+      mostrarMensagem("Informe a senha de 4 dígitos.", "erro");
+      return;
+    }
+
+    const usuario = getEstagiarios().find((e) => e.id === usuarioId);
+    if (!usuario || !usuario.senhaHash) {
+      mostrarMensagem("Usuário sem senha definida. Peça para master redefinir o PIN.", "erro");
+      return;
+    }
+
+    const senhaHash = await hashPin(pin);
+    if (senhaHash !== usuario.senhaHash) {
+      mostrarMensagem("Senha inválida.", "erro");
+      return;
+    }
+
     sessionStorage.setItem(CHAVE_USUARIO_ATUAL, usuarioId);
     renderizarTudo();
   });
@@ -913,10 +972,12 @@ if (formAutoCadastro) {
     const cargoFuncional = document.getElementById("cadastro-cargo").value.trim();
     const unidadeLotacao = document.getElementById("cadastro-unidade").value.trim();
     const nivel = Number(document.getElementById("cadastro-nivel").value);
+    const pin = document.getElementById("cadastro-senha").value.trim();
 
     if (!nome) return mostrarMensagem("Informe o nome completo.", "erro");
     if (!cargoFuncional) return mostrarMensagem("Informe o cargo.", "erro");
     if (!unidadeLotacao) return mostrarMensagem("Informe a unidade de lotação.", "erro");
+    if (!pinValido(pin)) return mostrarMensagem("Crie uma senha de exatamente 4 dígitos.", "erro");
 
     const nomeJaExiste = estagiarios.some((e) => normalizarTexto(e.nome) === normalizarTexto(nome));
     if (nomeJaExiste) return mostrarMensagem("Já existe um usuário com esse nome. Faça login.", "erro");
@@ -929,6 +990,7 @@ if (formAutoCadastro) {
       unidadeLotacao,
       nivel: normalizarNivel(nivel),
       cargoAcesso: primeiroCadastro ? "master" : "usuario",
+      senhaHash: await hashPin(pin),
     };
 
     estagiarios.push(novoUsuario);
@@ -953,11 +1015,13 @@ if (formCadastroUsuario) {
     const unidadeLotacao = document.getElementById("novo-usuario-unidade").value.trim();
     const nivel = Number(document.getElementById("novo-usuario-nivel").value);
     const cargoAcesso = document.getElementById("novo-usuario-perfil").value;
+    const pin = document.getElementById("novo-usuario-senha").value.trim();
 
     if (!nome) return mostrarMensagem("Informe o nome completo do novo usuário.", "erro");
     if (!cargoFuncional) return mostrarMensagem("Informe o cargo do novo usuário.", "erro");
     if (!unidadeLotacao) return mostrarMensagem("Informe a unidade do novo usuário.", "erro");
     if (!cargosPermitidos.includes(cargoAcesso)) return mostrarMensagem("Perfil de acesso inválido.", "erro");
+    if (!pinValido(pin)) return mostrarMensagem("Defina uma senha de exatamente 4 dígitos.", "erro");
 
     const nomeJaExiste = estagiarios.some((e) => normalizarTexto(e.nome) === normalizarTexto(nome));
     if (nomeJaExiste) return mostrarMensagem("Já existe um usuário com esse nome.", "erro");
@@ -969,6 +1033,7 @@ if (formCadastroUsuario) {
       unidadeLotacao,
       nivel: normalizarNivel(nivel),
       cargoAcesso,
+      senhaHash: await hashPin(pin),
     });
     await salvar(CHAVE_ESTAGIARIOS, estagiarios);
     formCadastroUsuario.reset();
@@ -1295,12 +1360,18 @@ if (tabelaEstagiarios) tabelaEstagiarios.addEventListener("click", async (event)
   if (acao === "salvar-usuario") {
     const selectCargo = selecionarPorDataset("select[data-cargo-id]", "cargoId", idAlvo);
     const selectNivel = selecionarPorDataset("select[data-nivel-id]", "nivelId", idAlvo);
+    const inputPin = selecionarPorDataset("input[data-pin-id]", "pinId", idAlvo);
     if (!(selectCargo instanceof HTMLSelectElement) || !(selectNivel instanceof HTMLSelectElement)) return;
 
     const novoCargo = selectCargo.value;
     const novoNivel = normalizarNivel(selectNivel.value);
+    const novoPin = inputPin instanceof HTMLInputElement ? inputPin.value.trim() : "";
     if (!cargosPermitidos.includes(novoCargo)) {
       mostrarMensagem("Perfil de acesso inválido.", "erro");
+      return;
+    }
+    if (novoPin && !pinValido(novoPin)) {
+      mostrarMensagem("O novo PIN precisa ter exatamente 4 dígitos.", "erro");
       return;
     }
 
@@ -1314,6 +1385,9 @@ if (tabelaEstagiarios) tabelaEstagiarios.addEventListener("click", async (event)
 
     estagiarios[idx].cargoAcesso = novoCargo;
     estagiarios[idx].nivel = novoNivel;
+    if (novoPin) {
+      estagiarios[idx].senhaHash = await hashPin(novoPin);
+    }
     await salvar(CHAVE_ESTAGIARIOS, estagiarios);
     mostrarMensagem("Usuário atualizado com sucesso.", "sucesso");
     renderizarTudo();

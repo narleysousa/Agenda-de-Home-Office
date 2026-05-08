@@ -17,6 +17,10 @@
           Usuário
           <select id="usuario-login-inicial" required></select>
         </label>
+        <label>
+          Senha de 4 dígitos
+          <input id="senha-login-inicial" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" required placeholder="0000">
+        </label>
         <button type="submit">Entrar na plataforma</button>
       </form>
       <hr>
@@ -45,6 +49,10 @@
             <option value="2">Nível 2 (2 homes/mês)</option>
             <option value="3">Nível 3 (4 homes/mês)</option>
           </select>
+        </label>
+        <label>
+          Senha de 4 dígitos
+          <input id="cadastro-senha" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" required placeholder="Crie um PIN">
         </label>
         <button type="submit">Criar conta e entrar</button>
       </form>

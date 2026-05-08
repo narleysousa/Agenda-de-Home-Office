@@ -129,6 +129,10 @@
               <option value="master">master</option>
             </select>
           </label>
+          <label>
+            Senha de 4 dígitos
+            <input id="novo-usuario-senha" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" required placeholder="PIN inicial">
+          </label>
           <button type="submit">Cadastrar usuário</button>
         </form>
       </section>
@@ -196,6 +200,7 @@
                 <th>Perfil de acesso</th>
                 <th>Limite mensal</th>
                 <th>Usados no mês atual</th>
+                <th>Senha</th>
                 <th>Ações</th>
               </tr>
             </thead>

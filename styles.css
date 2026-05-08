@@ -427,6 +427,12 @@ select[data-cargo-id] {
   min-width: 128px;
 }
 
+.pin-input,
+input[data-pin-id] {
+  width: 118px;
+  min-width: 118px;
+}
+
 .header-com-acoes {
   display: flex;
   justify-content: space-between;

@@ -11,6 +11,7 @@ Plataforma web para solicitação, aprovação e controle de home office de esta
 - Cancelamento da própria solicitação pendente ou aprovada por qualquer perfil.
 - Master pode alterar perfil de acesso e nível do usuário.
 - Master pode cadastrar novos usuários direto no painel.
+- Cada usuário acessa com senha/PIN de 4 dígitos; o PIN é salvo como hash SHA-256 no Firestore.
 - Exportação CSV das aprovações pendentes.
 - Dados sincronizados em tempo real no Cloud Firestore, sem salvar usuários/agendamentos no navegador.
 
@@ -92,6 +93,14 @@ Também funciona abrindo `index.html` diretamente no navegador.
 ## Primeira execução
 
 Na primeira vez, cadastre o primeiro usuário pelo formulário de primeiro acesso. Esse cadastro recebe automaticamente o cargo `master`.
+
+## Senhas de acesso
+
+- Cada pessoa precisa de um PIN de 4 dígitos para entrar.
+- O primeiro cadastro cria o PIN do master.
+- Master define o PIN inicial ao cadastrar novos usuários.
+- Master pode redefinir o PIN pela tabela de estagiários usando o campo "Novo PIN" e clicando em "Salvar".
+- Usuários antigos que ainda não tinham PIN são migrados automaticamente para o PIN padrão `0000`; redefina esses PINs depois pelo perfil master.
 
 ## Dados
 
