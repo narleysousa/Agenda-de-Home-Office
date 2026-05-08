@@ -1,0 +1,24 @@
+{
+  "name": "agenda-de-home-office",
+  "version": "1.0.0",
+  "description": "Plataforma web para solicitação, aprovação e controle de home office de estagiários.",
+  "scripts": {
+    "dev": "python3 -m http.server 5173",
+    "start": "python3 -m http.server 5173",
+    "build": "echo \"Projeto estático: sem etapa de build\"",
+    "check": "node --check script.js",
+    "preview": "python3 -m http.server 5173"
+  },
+  "keywords": [
+    "home-office",
+    "agenda",
+    "estagiarios",
+    "github-pages",
+    "firebase"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "firebase": "^12.13.0"
+  }
+}

@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel - Agenda de Home Office</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <header class="topo">
+      <div class="topo-conteudo">
+        <div>
+          <span class="eyebrow">Agenda operacional</span>
+          <h1>Home office dos estagiários</h1>
+          <p id="usuario-atual" class="mensagem usuario-atual"></p>
+        </div>
+        <div class="topo-acoes">
+          <label>
+            Tema
+            <select id="seletor-tema">
+              <option value="sistema">sistema</option>
+              <option value="claro">claro</option>
+              <option value="escuro">escuro</option>
+            </select>
+          </label>
+          <button id="btn-logout" type="button" class="btn-secundario">Sair</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="stats-grid">
+        <article class="stat-card">
+          <p id="label-kpi-total-usuarios">Total de usuários</p>
+          <strong id="kpi-total-usuarios">0</strong>
+        </article>
+        <article class="stat-card">
+          <p id="label-kpi-pendentes">Solicitações pendentes</p>
+          <strong id="kpi-pendentes">0</strong>
+        </article>
+        <article class="stat-card">
+          <p id="label-kpi-aprovados-mes">Aprovados no mês</p>
+          <strong id="kpi-aprovados-mes">0</strong>
+        </article>
+        <article class="stat-card">
+          <p id="label-kpi-taxa-aprovacao">Taxa de aprovação</p>
+          <strong id="kpi-taxa-aprovacao">0%</strong>
+        </article>
+      </section>
+
+      <section id="card-saldo" class="card saldo-card"></section>
+
+      <section class="card">
+        <div class="section-heading">
+          <h2>Filtros rápidos</h2>
+          <p>Refine a visão das tabelas, do calendário e da exportação.</p>
+        </div>
+        <form id="form-filtros" class="form-grid">
+          <label>
+            Buscar estagiário
+            <input id="filtro-busca" type="text" placeholder="Digite nome, cargo ou unidade">
+          </label>
+          <label>
+            Status do agendamento
+            <select id="filtro-status">
+              <option value="">todos</option>
+              <option value="pendente">pendente</option>
+              <option value="aprovado">aprovado</option>
+              <option value="negado">negado</option>
+              <option value="cancelado">cancelado</option>
+            </select>
+          </label>
+          <label>
+            Mês de referência
+            <input id="filtro-mes" type="month">
+          </label>
+          <button id="btn-limpar-filtros" type="button" class="btn-secundario">Limpar filtros</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <h2>Solicitar home office</h2>
+          <p>Dias passados e fins de semana são bloqueados automaticamente.</p>
+        </div>
+        <form id="form-agendamento" class="form-grid">
+          <label>
+            Data do home office
+            <input id="data-home" type="date" required>
+          </label>
+          <button type="submit">Solicitar</button>
+        </form>
+        <p id="mensagem" class="mensagem"></p>
+      </section>
+
+      <section id="card-cadastro-usuario" class="card">
+        <div class="section-heading">
+          <h2>Novo estagiário</h2>
+          <p>Cadastro rápido disponível para master.</p>
+        </div>
+        <form id="form-cadastro-usuario" class="form-grid">
+          <label>
+            Nome completo
+            <input id="novo-usuario-nome" type="text" placeholder="Ex.: João Pereira">
+          </label>
+          <label>
+            Cargo
+            <input id="novo-usuario-cargo" type="text" placeholder="Ex.: Estagiário de atendimento">
+          </label>
+          <label>
+            Unidade de lotação
+            <input id="novo-usuario-unidade" type="text" placeholder="Ex.: Unidade Centro">
+          </label>
+          <label>
+            Nível
+            <select id="novo-usuario-nivel">
+              <option value="0">Nível 0 (0 home/mês)</option>
+              <option value="1">Nível 1 (1 home/mês)</option>
+              <option value="2">Nível 2 (2 homes/mês)</option>
+              <option value="3">Nível 3 (4 homes/mês)</option>
+            </select>
+          </label>
+          <label>
+            Perfil de acesso
+            <select id="novo-usuario-perfil">
+              <option value="usuario">usuario</option>
+              <option value="adm">adm</option>
+              <option value="master">master</option>
+            </select>
+          </label>
+          <button type="submit">Cadastrar usuário</button>
+        </form>
+      </section>
+
+      <section class="card calendario-card">
+        <div class="header-com-acoes">
+          <div class="section-heading">
+            <h2>Agenda do mês</h2>
+            <p id="legenda-calendario">Resumo visual dos agendamentos filtrados.</p>
+          </div>
+          <div class="calendar-side">
+            <div class="calendar-toolbar" aria-label="Navegação do calendário">
+              <button id="btn-mes-anterior" class="btn-secundario" type="button">Anterior</button>
+              <button id="btn-mes-atual" class="btn-secundario" type="button">Hoje</button>
+              <button id="btn-mes-proximo" class="btn-secundario" type="button">Próximo</button>
+            </div>
+            <div class="calendar-legend">
+              <span><i class="dot aprovado"></i> aprovado</span>
+              <span><i class="dot pendente"></i> pendente</span>
+              <span><i class="dot negado"></i> negado</span>
+              <span><i class="dot cancelado"></i> cancelado</span>
+            </div>
+          </div>
+        </div>
+        <div id="calendario-mes" class="calendar-grid" aria-live="polite"></div>
+      </section>
+
+      <section id="card-aprovacoes" class="card">
+        <div class="header-com-acoes">
+          <div class="section-heading">
+            <h2>Aprovações</h2>
+            <p>Disponível para perfis adm e master.</p>
+          </div>
+          <button id="btn-exportar-csv" type="button">Exportar CSV</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Estagiário</th>
+                <th>Nível</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tabela-pendentes"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <h2>Estagiários</h2>
+          <p>Master pode ajustar nível, perfil de acesso e remover cadastros.</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nome completo</th>
+                <th>Cargo</th>
+                <th>Unidade de lotação</th>
+                <th>Nível</th>
+                <th>Perfil de acesso</th>
+                <th>Limite mensal</th>
+                <th>Usados no mês atual</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tabela-estagiarios"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="header-com-acoes">
+          <div class="section-heading">
+            <h2>Agendamentos</h2>
+            <p>Usuários veem os próprios registros; adm e master veem toda a operação.</p>
+          </div>
+          <button id="btn-limpar-agendamentos" class="btn-secundario" type="button">Limpar histórico</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Estagiário</th>
+                <th>Nível</th>
+                <th>Mês/Ano</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tabela-agendamentos"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agenda de Home Office</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <section class="tela-login">
+    <div class="login-card">
+      <span class="eyebrow">Controle de escala</span>
+      <h1>Agenda de Home Office</h1>
+      <p>Acesse a plataforma para solicitar, aprovar e acompanhar a cota mensal dos estagiários.</p>
+      <form id="form-login-inicial" class="form-grid">
+        <label>
+          Usuário
+          <select id="usuario-login-inicial" required></select>
+        </label>
+        <button type="submit">Entrar na plataforma</button>
+      </form>
+      <hr>
+      <div class="section-heading">
+        <h2>Primeiro acesso</h2>
+        <p>O primeiro cadastro vira master. Depois disso, novos cadastros entram como usuário.</p>
+      </div>
+      <form id="form-auto-cadastro" class="form-grid">
+        <label>
+          Nome completo
+          <input id="cadastro-nome" type="text" required placeholder="Ex.: Maria da Silva">
+        </label>
+        <label>
+          Cargo
+          <input id="cadastro-cargo" type="text" required placeholder="Ex.: Estagiário de TI">
+        </label>
+        <label>
+          Unidade de lotação
+          <input id="cadastro-unidade" type="text" required placeholder="Ex.: Unidade Centro">
+        </label>
+        <label>
+          Nível
+          <select id="cadastro-nivel" required>
+            <option value="0">Nível 0 (0 home/mês)</option>
+            <option value="1">Nível 1 (1 home/mês)</option>
+            <option value="2">Nível 2 (2 homes/mês)</option>
+            <option value="3">Nível 3 (4 homes/mês)</option>
+          </select>
+        </label>
+        <button type="submit">Criar conta e entrar</button>
+      </form>
+      <p id="mensagem-login" class="mensagem"></p>
+    </div>
+  </section>
+
+  <script src="script.js"></script>
+</body>
+</html>
