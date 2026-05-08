@@ -12,7 +12,7 @@ const statusAtivosNaCota = ["pendente", "aprovado"];
 const diasSemana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
 
 const formLoginInicial = document.getElementById("form-login-inicial");
-const selectUsuarioLoginInicial = document.getElementById("usuario-login-inicial");
+const emailLoginInicial = document.getElementById("email-login-inicial");
 const senhaLoginInicial = document.getElementById("senha-login-inicial");
 const formAutoCadastro = document.getElementById("form-auto-cadastro");
 const btnLogout = document.getElementById("btn-logout");
@@ -102,6 +102,14 @@ function normalizarTexto(valor) {
 
 function pinValido(pin) {
   return /^\d{4}$/.test(String(pin || ""));
+}
+
+function normalizarEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function emailValido(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizarEmail(email));
 }
 
 async function hashPin(pin) {
@@ -355,6 +363,7 @@ async function garantirUsuarioBootstrap() {
     const usuarioInicial = {
       id: gerarId(),
       nome: nome || "Administrador Inicial",
+      email: normalizarEmail(emailServico),
       cargoFuncional: "Gestor da plataforma",
       unidadeLotacao: "Matriz",
       nivel: 3,
@@ -431,6 +440,13 @@ function normalizarEstagiarios(estagiariosRecebidos) {
     const cargoAntigo = item.cargo && !cargosPermitidos.includes(item.cargo) ? item.cargo : "";
     const cargoFuncional = String(item.cargoFuncional || cargoAntigo || "Não informado").trim() || "Não informado";
     const unidadeLotacao = String(item.unidadeLotacao || "Não informada").trim() || "Não informada";
+    let email = normalizarEmail(item.email);
+    if (!email) {
+      const emailServico = normalizarEmail(window.firebaseServiceAuth && window.firebaseServiceAuth.email);
+      const ehMaster = normalizarCargoAcesso(item.cargoAcesso || item.cargo) === "master";
+      email = ehMaster && emailServico ? emailServico : `usuario-${id}@agenda.local`;
+      alterou = true;
+    }
     const nivel = normalizarNivel(item.nivel);
     const cargoAcesso = normalizarCargoAcesso(item.cargoAcesso || item.cargo);
     const senhaHash = String(item.senhaHash || "");
@@ -440,6 +456,7 @@ function normalizarEstagiarios(estagiariosRecebidos) {
       nome !== item.nome ||
       cargoFuncional !== item.cargoFuncional ||
       unidadeLotacao !== item.unidadeLotacao ||
+      email !== item.email ||
       nivel !== item.nivel ||
       cargoAcesso !== item.cargoAcesso ||
       senhaHash !== item.senhaHash
@@ -447,7 +464,7 @@ function normalizarEstagiarios(estagiariosRecebidos) {
       alterou = true;
     }
 
-    return { id, nome, cargoFuncional, unidadeLotacao, nivel, cargoAcesso, senhaHash };
+    return { id, nome, email, cargoFuncional, unidadeLotacao, nivel, cargoAcesso, senhaHash };
   });
 
   if (normalizados.length > 0 && !normalizados.some((e) => e.cargoAcesso === "master")) {
@@ -527,24 +544,6 @@ function obterUsuarioAtual(estagiarios) {
   }
 
   return estagiarios.find((e) => e.id === String(idAtual)) || null;
-}
-
-function preencherUsuariosLogin(estagiarios, usuarioAtual) {
-  if (!selectUsuarioLoginInicial) return;
-
-  if (estagiarios.length === 0) {
-    selectUsuarioLoginInicial.innerHTML = '<option value="">Cadastre o primeiro usuário abaixo</option>';
-    return;
-  }
-
-  selectUsuarioLoginInicial.innerHTML = estagiarios
-    .map((e) => {
-      const selected = usuarioAtual && usuarioAtual.id === e.id ? "selected" : "";
-      const nome = escaparHtml(e.nome);
-      const cargo = escaparHtml(e.cargoAcesso || "usuario");
-      return `<option value="${escaparAttr(e.id)}" ${selected}>${nome} (${cargo})</option>`;
-    })
-    .join("");
 }
 
 function contarUsoMensal(estagiarioId, dataIso, agendamentos, incluirPendentes) {
@@ -943,14 +942,12 @@ function iniciarFiltrosPadrao() {
 
 function renderizarTudo() {
   if (erroFirebase) {
-    preencherUsuariosLogin([], null);
     renderizarContextoAcesso(null);
     mostrarMensagem(erroFirebase, "erro");
     return;
   }
 
   if (!dadosFirebaseCarregados()) {
-    preencherUsuariosLogin([], null);
     renderizarContextoAcesso(null);
     mostrarMensagem("Conectando ao Firebase...", null);
     return;
@@ -960,7 +957,6 @@ function renderizarTudo() {
   const agendamentos = getAgendamentos();
   const usuarioAtual = obterUsuarioAtual(estagiarios);
 
-  preencherUsuariosLogin(estagiarios, usuarioAtual);
   if (estaNaPaginaLogin && usuarioAtual) {
     window.location.href = "app.html";
     return;
@@ -986,10 +982,10 @@ function renderizarTudo() {
 if (formLoginInicial) {
   formLoginInicial.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const usuarioId = selectUsuarioLoginInicial.value;
+    const email = normalizarEmail(emailLoginInicial ? emailLoginInicial.value : "");
     const pin = senhaLoginInicial ? senhaLoginInicial.value.trim() : "";
-    if (!usuarioId) {
-      mostrarMensagem("Cadastre o primeiro usuário para começar.", "erro");
+    if (!emailValido(email)) {
+      mostrarMensagem("Informe um email válido.", "erro");
       return;
     }
     if (!pinValido(pin)) {
@@ -997,9 +993,9 @@ if (formLoginInicial) {
       return;
     }
 
-    const usuario = getEstagiarios().find((e) => e.id === usuarioId);
+    const usuario = getEstagiarios().find((e) => normalizarEmail(e.email) === email);
     if (!usuario || !usuario.senhaHash) {
-      mostrarMensagem("Usuário sem senha definida. Peça para master redefinir o PIN.", "erro");
+      mostrarMensagem("Email não encontrado ou sem senha definida.", "erro");
       return;
     }
 
@@ -1009,7 +1005,7 @@ if (formLoginInicial) {
       return;
     }
 
-    sessionStorage.setItem(CHAVE_USUARIO_ATUAL, usuarioId);
+    sessionStorage.setItem(CHAVE_USUARIO_ATUAL, usuario.id);
     renderizarTudo();
   });
 }
@@ -1018,17 +1014,21 @@ if (formAutoCadastro) {
   formAutoCadastro.addEventListener("submit", async (event) => {
     event.preventDefault();
     const estagiarios = getEstagiarios();
+    const email = normalizarEmail(document.getElementById("cadastro-email").value);
     const nome = document.getElementById("cadastro-nome").value.trim();
     const cargoFuncional = document.getElementById("cadastro-cargo").value.trim();
     const unidadeLotacao = document.getElementById("cadastro-unidade").value.trim();
     const nivel = Number(document.getElementById("cadastro-nivel").value);
     const pin = document.getElementById("cadastro-senha").value.trim();
 
+    if (!emailValido(email)) return mostrarMensagem("Informe um email válido.", "erro");
     if (!nome) return mostrarMensagem("Informe o nome completo.", "erro");
     if (!cargoFuncional) return mostrarMensagem("Informe o cargo.", "erro");
     if (!unidadeLotacao) return mostrarMensagem("Informe a unidade de lotação.", "erro");
     if (!pinValido(pin)) return mostrarMensagem("Crie uma senha de exatamente 4 dígitos.", "erro");
 
+    const emailJaExiste = estagiarios.some((e) => normalizarEmail(e.email) === email);
+    if (emailJaExiste) return mostrarMensagem("Já existe um usuário com esse email. Faça login.", "erro");
     const nomeJaExiste = estagiarios.some((e) => normalizarTexto(e.nome) === normalizarTexto(nome));
     if (nomeJaExiste) return mostrarMensagem("Já existe um usuário com esse nome. Faça login.", "erro");
 
@@ -1036,6 +1036,7 @@ if (formAutoCadastro) {
     const novoUsuario = {
       id: gerarId(),
       nome,
+      email,
       cargoFuncional,
       unidadeLotacao,
       nivel: normalizarNivel(nivel),
@@ -1065,24 +1066,29 @@ if (formCadastroUsuario) {
     }
 
     const nome = document.getElementById("novo-usuario-nome").value.trim();
+    const email = normalizarEmail(document.getElementById("novo-usuario-email").value);
     const cargoFuncional = document.getElementById("novo-usuario-cargo").value.trim();
     const unidadeLotacao = document.getElementById("novo-usuario-unidade").value.trim();
     const nivel = Number(document.getElementById("novo-usuario-nivel").value);
     const cargoAcesso = document.getElementById("novo-usuario-perfil").value;
     const pin = document.getElementById("novo-usuario-senha").value.trim();
 
+    if (!emailValido(email)) return mostrarMensagem("Informe um email válido para o novo usuário.", "erro");
     if (!nome) return mostrarMensagem("Informe o nome completo do novo usuário.", "erro");
     if (!cargoFuncional) return mostrarMensagem("Informe o cargo do novo usuário.", "erro");
     if (!unidadeLotacao) return mostrarMensagem("Informe a unidade do novo usuário.", "erro");
     if (!cargosPermitidos.includes(cargoAcesso)) return mostrarMensagem("Perfil de acesso inválido.", "erro");
     if (!pinValido(pin)) return mostrarMensagem("Defina uma senha de exatamente 4 dígitos.", "erro");
 
+    const emailJaExiste = estagiarios.some((e) => normalizarEmail(e.email) === email);
+    if (emailJaExiste) return mostrarMensagem("Já existe um usuário com esse email.", "erro");
     const nomeJaExiste = estagiarios.some((e) => normalizarTexto(e.nome) === normalizarTexto(nome));
     if (nomeJaExiste) return mostrarMensagem("Já existe um usuário com esse nome.", "erro");
 
     estagiarios.push({
       id: gerarId(),
       nome,
+      email,
       cargoFuncional,
       unidadeLotacao,
       nivel: normalizarNivel(nivel),

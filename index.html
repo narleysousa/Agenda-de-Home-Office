@@ -14,8 +14,8 @@
       <p>Acesse a plataforma para solicitar, aprovar e acompanhar a cota mensal dos estagiários.</p>
       <form id="form-login-inicial" class="form-grid">
         <label>
-          Usuário
-          <select id="usuario-login-inicial" required></select>
+          Email
+          <input id="email-login-inicial" type="email" required placeholder="voce@empresa.com">
         </label>
         <label>
           Senha de 4 dígitos
@@ -29,6 +29,10 @@
         <p>O primeiro cadastro vira master. Depois disso, novos cadastros entram como usuário.</p>
       </div>
       <form id="form-auto-cadastro" class="form-grid">
+        <label>
+          Email
+          <input id="cadastro-email" type="email" required placeholder="voce@empresa.com">
+        </label>
         <label>
           Nome completo
           <input id="cadastro-nome" type="text" required placeholder="Ex.: Maria da Silva">
