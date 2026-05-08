@@ -2,6 +2,8 @@ const CHAVE_ESTAGIARIOS = "homeoffice_estagiarios";
 const CHAVE_AGENDAMENTOS = "homeoffice_agendamentos";
 const CHAVE_USUARIO_ATUAL = "homeoffice_usuario_atual";
 const CHAVE_TEMA = "homeoffice_tema";
+const COLECAO_ESTAGIARIOS = "estagiarios";
+const COLECAO_AGENDAMENTOS = "agendamentos";
 
 const limitesPorNivel = Object.freeze({ 0: 0, 1: 1, 2: 2, 3: 4 });
 const cargosPermitidos = ["usuario", "adm", "master"];
@@ -51,24 +53,21 @@ const labelKpiTaxaAprovacao = document.getElementById("label-kpi-taxa-aprovacao"
 
 const filtros = { busca: "", status: "", mes: "" };
 let aprovacoesPendentesParaExportacao = [];
+let db = null;
+let auth = null;
+let estagiariosCarregados = false;
+let agendamentosCarregados = false;
+let erroFirebase = "";
+let unsubscribeEstagiarios = null;
+let unsubscribeAgendamentos = null;
+const estadoRemoto = {
+  estagiarios: [],
+  agendamentos: [],
+};
 
 const pathname = window.location.pathname;
 const estaNaPaginaLogin = pathname.endsWith("/index.html") || pathname.endsWith("index.html") || pathname.endsWith("/");
 const estaNaPaginaApp = pathname.endsWith("/app.html") || pathname.endsWith("app.html");
-
-function carregar(chave) {
-  const valor = localStorage.getItem(chave);
-  if (!valor) return [];
-  try {
-    return JSON.parse(valor);
-  } catch {
-    return [];
-  }
-}
-
-function salvar(chave, dados) {
-  localStorage.setItem(chave, JSON.stringify(dados));
-}
 
 function gerarId() {
   const aleatorio = Math.floor(Math.random() * 1000000);
@@ -195,6 +194,102 @@ function mostrarMensagem(texto, tipo) {
   if (tipo) alvoMensagem.classList.add(tipo);
 }
 
+function firebaseConfigurado() {
+  const config = window.firebaseConfig || {};
+  return Boolean(
+    window.firebase &&
+    config.apiKey &&
+    config.projectId &&
+    !String(config.apiKey).includes("COLE_") &&
+    !String(config.projectId).includes("SEU_PROJETO")
+  );
+}
+
+function dadosFirebaseCarregados() {
+  return estagiariosCarregados && agendamentosCarregados;
+}
+
+function docSemId(item) {
+  const { id, ...dados } = item;
+  return dados;
+}
+
+async function salvar(chave, dados) {
+  if (!db) {
+    mostrarMensagem("Configure o Firebase antes de salvar dados.", "erro");
+    return false;
+  }
+
+  const colecao = chave === CHAVE_ESTAGIARIOS ? COLECAO_ESTAGIARIOS : COLECAO_AGENDAMENTOS;
+  const estadoAtual = chave === CHAVE_ESTAGIARIOS ? estadoRemoto.estagiarios : estadoRemoto.agendamentos;
+  const lista = dados.map((item) => ({ ...item, id: String(item.id || gerarId()) }));
+
+  if (chave === CHAVE_ESTAGIARIOS) {
+    estadoRemoto.estagiarios = lista;
+  } else {
+    estadoRemoto.agendamentos = lista;
+  }
+
+  const batch = db.batch();
+  const idsNovos = new Set(lista.map((item) => item.id));
+
+  lista.forEach((item) => {
+    batch.set(db.collection(colecao).doc(item.id), docSemId(item));
+  });
+
+  estadoAtual.forEach((item) => {
+    if (!idsNovos.has(item.id)) {
+      batch.delete(db.collection(colecao).doc(item.id));
+    }
+  });
+
+  await batch.commit();
+  return true;
+}
+
+async function iniciarFirebase() {
+  if (!firebaseConfigurado()) {
+    erroFirebase = "Firebase não configurado. Preencha firebase-config.js com os dados do seu projeto.";
+    estagiariosCarregados = true;
+    agendamentosCarregados = true;
+    renderizarTudo();
+    return;
+  }
+
+  try {
+    if (!firebase.apps.length) {
+      firebase.initializeApp(window.firebaseConfig);
+    }
+
+    auth = firebase.auth();
+    db = firebase.firestore();
+    await auth.signInAnonymously();
+
+    unsubscribeEstagiarios = db.collection(COLECAO_ESTAGIARIOS).onSnapshot((snapshot) => {
+      estadoRemoto.estagiarios = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      estagiariosCarregados = true;
+      renderizarTudo();
+    }, (error) => {
+      erroFirebase = `Erro ao carregar usuários: ${error.message}`;
+      mostrarMensagem(erroFirebase, "erro");
+    });
+
+    unsubscribeAgendamentos = db.collection(COLECAO_AGENDAMENTOS).onSnapshot((snapshot) => {
+      estadoRemoto.agendamentos = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      agendamentosCarregados = true;
+      renderizarTudo();
+    }, (error) => {
+      erroFirebase = `Erro ao carregar agendamentos: ${error.message}`;
+      mostrarMensagem(erroFirebase, "erro");
+    });
+  } catch (error) {
+    erroFirebase = `Erro ao iniciar Firebase: ${error.message}`;
+    estagiariosCarregados = true;
+    agendamentosCarregados = true;
+    renderizarTudo();
+  }
+}
+
 function temaSistemaEhEscuro() {
   return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
@@ -214,20 +309,20 @@ function aplicarTema(tema) {
 }
 
 function iniciarTema() {
-  const temaSalvo = localStorage.getItem(CHAVE_TEMA) || "sistema";
+  const temaSalvo = sessionStorage.getItem(CHAVE_TEMA) || "sistema";
   aplicarTema(temaSalvo);
 
   if (seletorTema) {
     seletorTema.addEventListener("change", () => {
       const temaEscolhido = seletorTema.value;
-      localStorage.setItem(CHAVE_TEMA, temaEscolhido);
+      sessionStorage.setItem(CHAVE_TEMA, temaEscolhido);
       aplicarTema(temaEscolhido);
     });
   }
 
   if (window.matchMedia) {
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-      const temaSalvoAtual = localStorage.getItem(CHAVE_TEMA) || "sistema";
+      const temaSalvoAtual = sessionStorage.getItem(CHAVE_TEMA) || "sistema";
       if (temaSalvoAtual === "sistema") aplicarTema("sistema");
     });
   }
@@ -270,10 +365,8 @@ function normalizarEstagiarios(estagiariosRecebidos) {
 
   if (normalizados.length > 0 && !normalizados.some((e) => e.cargoAcesso === "master")) {
     normalizados[0].cargoAcesso = "master";
-    alterou = true;
   }
 
-  if (alterou) salvar(CHAVE_ESTAGIARIOS, normalizados);
   return normalizados;
 }
 
@@ -320,25 +413,23 @@ function normalizarAgendamentos(agendamentosRecebidos) {
     normalizados.push(normalizado);
   });
 
-  if (alterou) salvar(CHAVE_AGENDAMENTOS, normalizados);
   return normalizados;
 }
 
 function inicializarBase() {
-  normalizarEstagiarios(carregar(CHAVE_ESTAGIARIOS));
-  normalizarAgendamentos(carregar(CHAVE_AGENDAMENTOS));
+  iniciarFirebase();
 }
 
 function getEstagiarios() {
-  return normalizarEstagiarios(carregar(CHAVE_ESTAGIARIOS));
+  return normalizarEstagiarios(estadoRemoto.estagiarios);
 }
 
 function getAgendamentos() {
-  return normalizarAgendamentos(carregar(CHAVE_AGENDAMENTOS));
+  return normalizarAgendamentos(estadoRemoto.agendamentos);
 }
 
 function obterUsuarioAtual(estagiarios) {
-  const bruto = localStorage.getItem(CHAVE_USUARIO_ATUAL);
+  const bruto = sessionStorage.getItem(CHAVE_USUARIO_ATUAL);
   if (!bruto) return null;
 
   let idAtual = bruto;
@@ -760,6 +851,20 @@ function iniciarFiltrosPadrao() {
 }
 
 function renderizarTudo() {
+  if (erroFirebase) {
+    preencherUsuariosLogin([], null);
+    renderizarContextoAcesso(null);
+    mostrarMensagem(erroFirebase, "erro");
+    return;
+  }
+
+  if (!dadosFirebaseCarregados()) {
+    preencherUsuariosLogin([], null);
+    renderizarContextoAcesso(null);
+    mostrarMensagem("Conectando ao Firebase...", null);
+    return;
+  }
+
   const estagiarios = getEstagiarios();
   const agendamentos = getAgendamentos();
   const usuarioAtual = obterUsuarioAtual(estagiarios);
@@ -795,13 +900,13 @@ if (formLoginInicial) {
       mostrarMensagem("Cadastre o primeiro usuário para começar.", "erro");
       return;
     }
-    localStorage.setItem(CHAVE_USUARIO_ATUAL, usuarioId);
+    sessionStorage.setItem(CHAVE_USUARIO_ATUAL, usuarioId);
     renderizarTudo();
   });
 }
 
 if (formAutoCadastro) {
-  formAutoCadastro.addEventListener("submit", (event) => {
+  formAutoCadastro.addEventListener("submit", async (event) => {
     event.preventDefault();
     const estagiarios = getEstagiarios();
     const nome = document.getElementById("cadastro-nome").value.trim();
@@ -827,14 +932,14 @@ if (formAutoCadastro) {
     };
 
     estagiarios.push(novoUsuario);
-    salvar(CHAVE_ESTAGIARIOS, estagiarios);
-    localStorage.setItem(CHAVE_USUARIO_ATUAL, novoUsuario.id);
+    await salvar(CHAVE_ESTAGIARIOS, estagiarios);
+    sessionStorage.setItem(CHAVE_USUARIO_ATUAL, novoUsuario.id);
     window.location.href = "app.html";
   });
 }
 
 if (formCadastroUsuario) {
-  formCadastroUsuario.addEventListener("submit", (event) => {
+  formCadastroUsuario.addEventListener("submit", async (event) => {
     event.preventDefault();
     const estagiarios = getEstagiarios();
     const usuarioAtual = obterUsuarioAtual(estagiarios);
@@ -865,7 +970,7 @@ if (formCadastroUsuario) {
       nivel: normalizarNivel(nivel),
       cargoAcesso,
     });
-    salvar(CHAVE_ESTAGIARIOS, estagiarios);
+    await salvar(CHAVE_ESTAGIARIOS, estagiarios);
     formCadastroUsuario.reset();
     mostrarMensagem("Usuário cadastrado com sucesso.", "sucesso");
     renderizarTudo();
@@ -874,7 +979,7 @@ if (formCadastroUsuario) {
 
 if (btnLogout) {
   btnLogout.addEventListener("click", () => {
-    localStorage.removeItem(CHAVE_USUARIO_ATUAL);
+    sessionStorage.removeItem(CHAVE_USUARIO_ATUAL);
     window.location.href = "index.html";
   });
 }
@@ -933,7 +1038,7 @@ function campoCsv(valor) {
   return `"${seguro.replace(/"/g, '""')}"`;
 }
 
-function solicitarHomeOffice(data, origem = "formulario") {
+async function solicitarHomeOffice(data, origem = "formulario") {
   if (!dataIsoValida(data)) return mostrarMensagem("Selecione uma data válida.", "erro");
   if (data < dataHojeIso()) return mostrarMensagem("Não é permitido solicitar home office em data passada.", "erro");
   if (dataEhFimDeSemana(data)) return mostrarMensagem("Solicitações só podem ser feitas para dias úteis.", "erro");
@@ -969,7 +1074,7 @@ function solicitarHomeOffice(data, origem = "formulario") {
     analisadoPor: null,
     analisadoEm: null,
   });
-  salvar(CHAVE_AGENDAMENTOS, agendamentos);
+  await salvar(CHAVE_AGENDAMENTOS, agendamentos);
   if (formAgendamento) formAgendamento.reset();
   configurarCampoDataHome();
   const complemento = origem === "calendario" ? ` para ${formatarData(data)}` : "";
@@ -1012,7 +1117,7 @@ if (btnExportarCsv) {
 }
 
 if (btnLimparAgendamentos) {
-  btnLimparAgendamentos.addEventListener("click", () => {
+  btnLimparAgendamentos.addEventListener("click", async () => {
     const estagiarios = getEstagiarios();
     const usuarioAtual = obterUsuarioAtual(estagiarios);
     if (!usuarioAtual) return mostrarMensagem("Faça login para limpar o histórico.", "erro");
@@ -1034,7 +1139,7 @@ if (btnLimparAgendamentos) {
     if (!confirmou) return;
 
     const idsRemoviveis = new Set(removiveis.map((a) => a.id));
-    salvar(CHAVE_AGENDAMENTOS, agendamentos.filter((a) => !idsRemoviveis.has(a.id)));
+    await salvar(CHAVE_AGENDAMENTOS, agendamentos.filter((a) => !idsRemoviveis.has(a.id)));
     mostrarMensagem("Histórico de agendamentos limpo com sucesso.", "sucesso");
     renderizarTudo();
   });
@@ -1069,7 +1174,7 @@ if (calendarioMes) {
   });
 }
 
-if (tabelaPendentes) tabelaPendentes.addEventListener("click", (event) => {
+if (tabelaPendentes) tabelaPendentes.addEventListener("click", async (event) => {
   const alvo = event.target;
   if (!(alvo instanceof HTMLElement)) return;
 
@@ -1134,11 +1239,11 @@ if (tabelaPendentes) tabelaPendentes.addEventListener("click", (event) => {
     mostrarMensagem("Solicitação negada.", "erro");
   }
 
-  salvar(CHAVE_AGENDAMENTOS, agendamentos);
+  await salvar(CHAVE_AGENDAMENTOS, agendamentos);
   renderizarTudo();
 });
 
-if (tabelaAgendamentos) tabelaAgendamentos.addEventListener("click", (event) => {
+if (tabelaAgendamentos) tabelaAgendamentos.addEventListener("click", async (event) => {
   const alvo = event.target;
   if (!(alvo instanceof HTMLElement)) return;
 
@@ -1160,7 +1265,7 @@ if (tabelaAgendamentos) tabelaAgendamentos.addEventListener("click", (event) => 
   item.status = "cancelado";
   item.analisadoPor = usuarioAtual.id;
   item.analisadoEm = new Date().toISOString();
-  salvar(CHAVE_AGENDAMENTOS, agendamentos);
+  await salvar(CHAVE_AGENDAMENTOS, agendamentos);
   mostrarMensagem("Solicitação cancelada.", "sucesso");
   renderizarTudo();
 });
@@ -1169,7 +1274,7 @@ function selecionarPorDataset(seletor, chaveDataset, id) {
   return [...document.querySelectorAll(seletor)].find((elemento) => elemento.dataset[chaveDataset] === id) || null;
 }
 
-if (tabelaEstagiarios) tabelaEstagiarios.addEventListener("click", (event) => {
+if (tabelaEstagiarios) tabelaEstagiarios.addEventListener("click", async (event) => {
   const alvo = event.target;
   if (!(alvo instanceof HTMLElement)) return;
 
@@ -1209,7 +1314,7 @@ if (tabelaEstagiarios) tabelaEstagiarios.addEventListener("click", (event) => {
 
     estagiarios[idx].cargoAcesso = novoCargo;
     estagiarios[idx].nivel = novoNivel;
-    salvar(CHAVE_ESTAGIARIOS, estagiarios);
+    await salvar(CHAVE_ESTAGIARIOS, estagiarios);
     mostrarMensagem("Usuário atualizado com sucesso.", "sucesso");
     renderizarTudo();
     return;
@@ -1230,14 +1335,14 @@ if (tabelaEstagiarios) tabelaEstagiarios.addEventListener("click", (event) => {
     if (!confirmou) return;
 
     const estagiariosAtualizados = estagiarios.filter((e) => e.id !== idAlvo);
-    salvar(CHAVE_ESTAGIARIOS, estagiariosAtualizados);
+    await salvar(CHAVE_ESTAGIARIOS, estagiariosAtualizados);
 
     const agendamentos = getAgendamentos();
     const agendamentosAtualizados = agendamentos.filter((a) => a.estagiarioId !== idAlvo);
-    salvar(CHAVE_AGENDAMENTOS, agendamentosAtualizados);
+    await salvar(CHAVE_AGENDAMENTOS, agendamentosAtualizados);
 
     if (usuarioAtual.id === idAlvo) {
-      localStorage.removeItem(CHAVE_USUARIO_ATUAL);
+      sessionStorage.removeItem(CHAVE_USUARIO_ATUAL);
       window.location.href = "index.html";
       return;
     }

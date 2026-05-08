@@ -6,110 +6,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function perfil() {
-      return get(/databases/$(database)/documents/estagiarios/$(request.auth.uid)).data.cargoAcesso;
-    }
-
-    function isAdm() {
-      return signedIn() && (perfil() == "adm" || perfil() == "master");
-    }
-
-    function isMaster() {
-      return signedIn() && perfil() == "master";
-    }
-
-    function isOwner(uid) {
-      return signedIn() && request.auth.uid == uid;
-    }
-
-    function validNivel(nivel) {
-      return nivel in [0, 1, 2, 3];
-    }
-
-    function validPerfil(perfil) {
-      return perfil in ["usuario", "adm", "master"];
-    }
-
-    function validStatus(status) {
-      return status in ["pendente", "aprovado", "negado", "cancelado"];
-    }
-
-    match /estagiarios/{uid} {
-      allow read: if isOwner(uid) || isAdm();
-
-      allow create: if signedIn()
-        && (
-          (request.auth.uid == uid && request.resource.data.cargoAcesso == "usuario")
-          || isMaster()
-        )
-        && request.resource.data.keys().hasOnly([
-          "nome",
-          "cargoFuncional",
-          "unidadeLotacao",
-          "nivel",
-          "cargoAcesso",
-          "criadoEm"
-        ])
-        && request.resource.data.nome is string
-        && request.resource.data.cargoFuncional is string
-        && request.resource.data.unidadeLotacao is string
-        && validNivel(request.resource.data.nivel)
-        && validPerfil(request.resource.data.cargoAcesso);
-
-      allow update: if isMaster()
-        && request.resource.data.keys().hasOnly([
-          "nome",
-          "cargoFuncional",
-          "unidadeLotacao",
-          "nivel",
-          "cargoAcesso",
-          "criadoEm"
-        ])
-        && validNivel(request.resource.data.nivel)
-        && validPerfil(request.resource.data.cargoAcesso);
-
-      allow delete: if isMaster();
+    match /estagiarios/{id} {
+      allow read, write: if signedIn();
     }
 
     match /agendamentos/{id} {
-      allow read: if signedIn()
-        && (resource.data.estagiarioId == request.auth.uid || isAdm());
-
-      allow create: if signedIn()
-        && request.resource.data.keys().hasOnly([
-          "estagiarioId",
-          "data",
-          "status",
-          "criadoEm",
-          "analisadoPor",
-          "analisadoEm"
-        ])
-        && request.resource.data.estagiarioId == request.auth.uid
-        && request.resource.data.status == "pendente"
-        && request.resource.data.data is string
-        && request.resource.data.analisadoPor == null
-        && request.resource.data.analisadoEm == null;
-
-      allow update: if signedIn()
-        && validStatus(request.resource.data.status)
-        && (
-          (
-            resource.data.estagiarioId == request.auth.uid
-            && resource.data.status in ["pendente", "aprovado"]
-            && request.resource.data.status == "cancelado"
-          )
-          ||
-          (
-            isAdm()
-            && resource.data.status == "pendente"
-            && request.resource.data.status in ["aprovado", "negado", "cancelado"]
-            && request.resource.data.analisadoPor == request.auth.uid
-          )
-        );
-
-      allow delete: if signedIn()
-        && resource.data.status in ["cancelado", "negado"]
-        && (resource.data.estagiarioId == request.auth.uid || isAdm());
+      allow read, write: if signedIn();
     }
   }
 }

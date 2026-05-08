@@ -12,7 +12,7 @@ Plataforma web para solicitação, aprovação e controle de home office de esta
 - Master pode alterar perfil de acesso e nível do usuário.
 - Master pode cadastrar novos usuários direto no painel.
 - Exportação CSV das aprovações pendentes.
-- Normalização dos dados salvos no `localStorage` e proteção contra HTML injetado em campos de cadastro.
+- Dados sincronizados em tempo real no Cloud Firestore, sem salvar usuários/agendamentos no navegador.
 
 ## Regras de nível
 
@@ -95,10 +95,25 @@ Na primeira vez, cadastre o primeiro usuário pelo formulário de primeiro acess
 
 ## Dados
 
-Tudo é salvo no `localStorage` do navegador (sem banco de dados).
+Usuários e agendamentos são salvos no Cloud Firestore nas coleções:
+
+- `estagiarios`
+- `agendamentos`
+
+O navegador guarda apenas dados de sessão, como usuário selecionado e tema, usando `sessionStorage`.
 
 ## Firebase
 
-O arquivo `firestore.rules` foi incluído para versionar as regras do Cloud Firestore.
+Para conectar o app ao Firebase:
 
-O app atual ainda usa `localStorage`. Para produção real com vários usuários/dispositivos, o próximo passo é ligar autenticação Firebase Auth, trocar a camada de dados para Firestore e mover validações críticas de cota mensal para backend/Cloud Functions.
+1. Crie um projeto no Firebase.
+2. Crie um app Web dentro do projeto.
+3. Copie o objeto `firebaseConfig`.
+4. Cole os valores em `firebase-config.js`.
+5. Ative `Authentication > Sign-in method > Anonymous`.
+6. Crie o Cloud Firestore.
+7. Publique as regras de `firestore.rules`.
+
+O app usa Firebase Auth anônimo só para liberar leitura/escrita no Firestore. Os perfis `usuario`, `adm` e `master` continuam sendo controlados pela própria plataforma.
+
+Para produção com segurança forte, o próximo passo é trocar o seletor interno por login real do Firebase Auth e mover validações críticas de cota mensal para backend/Cloud Functions.
